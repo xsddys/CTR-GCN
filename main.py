@@ -27,10 +27,14 @@ from tqdm import tqdm
 
 from torchlight import DictAction
 
-
-import resource
-rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
+# 针对Windows系统的处理
+try:
+    import resource
+    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
+except ImportError:
+    # Windows系统下跳过resource相关设置
+    pass
 
 def init_seed(seed):
     torch.cuda.manual_seed_all(seed)
@@ -123,7 +127,7 @@ def get_parser():
     parser.add_argument(
         '--num-worker',
         type=int,
-        default=32,
+        default=16,
         help='the number of worker for data loader')
     parser.add_argument(
         '--train-feeder-args',
@@ -173,9 +177,9 @@ def get_parser():
     parser.add_argument(
         '--nesterov', type=str2bool, default=False, help='use nesterov or not')
     parser.add_argument(
-        '--batch-size', type=int, default=256, help='training batch size')
+        '--batch-size', type=int, default=32, help='training batch size')
     parser.add_argument(
-        '--test-batch-size', type=int, default=256, help='test batch size')
+        '--test-batch-size', type=int, default=64, help='test batch size')
     parser.add_argument(
         '--start-epoch',
         type=int,
@@ -561,7 +565,7 @@ if __name__ == '__main__':
     p = parser.parse_args()
     if p.config is not None:
         with open(p.config, 'r') as f:
-            default_arg = yaml.load(f)
+            default_arg = yaml.load(f, Loader=yaml.SafeLoader)
         key = vars(p).keys()
         for k in default_arg.keys():
             if k not in key:

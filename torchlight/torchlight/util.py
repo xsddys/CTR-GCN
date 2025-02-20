@@ -13,8 +13,18 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
-from torchpack.runner.hooks import PaviLogger
 
+# 创建一个简单的Logger类来替代PaviLogger
+class Logger:
+    def __init__(self, url=None):
+        self.url = url
+    
+    def connect(self, work_dir, info=None):
+        self.work_dir = work_dir
+        self.info = info
+    
+    def log(self, *args, **kwargs):
+        pass
 
 class IO():
     def __init__(self, work_dir, save_log=True, print_log=True):
@@ -33,7 +43,7 @@ class IO():
                 url = 'http://pavi.parrotsdnn.org/log'
                 with open(self.session_file, 'r') as f:
                     info = dict(session_file=self.session_file, session_text=f.read(), model_text=self.model_text)
-                self.pavi_logger = PaviLogger(url)
+                self.pavi_logger = Logger(url)  # 使用我们自己的Logger类
                 self.pavi_logger.connect(self.work_dir, info=info)
             self.pavi_logger.log(*args, **kwargs)
         except:  #pylint: disable=W0702
@@ -105,9 +115,7 @@ class IO():
         self.print_log(f'The model has been saved as {model_path}.')
 
     def save_arg(self, arg):
-
         self.session_file = f'{self.work_dir}/config.yaml'
-
         # save arg
         arg_dict = vars(arg)
         if not os.path.exists(self.work_dir):

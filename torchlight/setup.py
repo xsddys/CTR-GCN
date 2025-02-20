@@ -5,4 +5,10 @@ setup(
     version='1.0',
     description='A mini framework for pytorch',
     packages=find_packages(),
-    install_requires=[])
+    install_requires=[
+        'numpy',
+        'torch',
+        'torchpack',
+        'h5py',
+        'pyyaml'
+    ])

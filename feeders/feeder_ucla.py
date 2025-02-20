@@ -40,16 +40,55 @@ class Feeder(Dataset):
             self.get_mean_map()
 
     def load_data(self):
-        # data: N C V T M
-        self.data = []
+        """加载数据并预处理成统一格式
+        最终格式: (N, C, T, V, M) 
+        N: 样本数, C: 坐标数(3), T: 时间步长(52), V: 关节点数(20), M: 人数(1)
+        """
+        temp_data = []
         for data in self.data_dict:
             file_name = data['file_name']
             with open(self.nw_ucla_root + file_name + '.json', 'r') as f:
                 json_file = json.load(f)
             skeletons = json_file['skeletons']
-            value = np.array(skeletons)
-            self.data.append(value)
-
+            value = np.array(skeletons)  # (T, V, C)
+            
+            # 数据预处理
+            center = value[0,1,:]
+            value = value - center  # 中心化
+            
+            # 视角变换
+            if self.train_val == 'train':
+                agx = random.randint(-60, 60)
+                agy = random.randint(-60, 60)
+                s = random.uniform(0.5, 1.5)
+            else:
+                agx, agy, s = 0, 0, 1.0
+            value = self.rand_view_transform(value, agx, agy, s)
+            
+            # 归一化
+            value = np.reshape(value, (-1, 3))
+            value = (value - np.min(value,axis=0)) / (np.max(value,axis=0) - np.min(value,axis=0))
+            value = value*2-1
+            value = np.reshape(value, (-1, 20, 3))  # (T, V, C)
+            
+            # 统一时间步长
+            data_new = np.zeros((self.time_steps, 20, 3))
+            length = value.shape[0]
+            if self.train_val == 'train':
+                random_idx = random.sample(list(np.arange(length))*100, self.time_steps)
+                random_idx.sort()
+                data_new[:,:,:] = value[random_idx,:,:]
+            else:
+                idx = np.linspace(0,length-1,self.time_steps).astype(np.int32)
+                data_new[:,:,:] = value[idx,:,:]
+                
+            # 转换为 (C, T, V) 格式并添加批次和人数维度
+            data_new = np.transpose(data_new, (2, 0, 1))  # (C, T, V)
+            data_new = np.expand_dims(data_new, axis=(0, -1))  # (1, C, T, V, 1)
+            temp_data.append(data_new)
+        
+        # 将所有样本拼接成一个大的numpy数组
+        self.data = np.concatenate(temp_data, axis=0)  # (N, C, T, V, M)
 
     def get_mean_map(self):
         data = self.data
@@ -123,7 +162,7 @@ class Feeder(Dataset):
             value = scalerValue[:,:,:]
             length = value.shape[0]
 
-            idx = np.linspace(0,length-1,self.time_steps).astype(np.int)
+            idx = np.linspace(0,length-1,self.time_steps).astype(np.int32)
             data[:,:,:] = value[idx,:,:] # T,V,C
 
         if 'bone' in self.data_path:
